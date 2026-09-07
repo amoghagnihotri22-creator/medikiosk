@@ -139,8 +139,9 @@ export default function Home() {
       const formData = new FormData();
       formData.append("document", file);
 
-      const res = await fetch(`http://localhost:4000/api/patients/${patientId}/documents`, {
-        method: "POST",
+const ocrUrl = process.env.NEXT_PUBLIC_OCR_URL || "http://localhost:4000";
+
+const res = await fetch(`${ocrUrl}/api/patients/${patientId}/documents`, {        method: "POST",
         body: formData,
       });
 
