@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Search,
   MessageSquare,
@@ -909,6 +909,23 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
+
+  /* Load the live demo patient from localStorage AFTER hydration */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("medikiosk_live_patient");
+      if (saved) {
+        const livePatient = JSON.parse(saved);
+        setPatients((prev) => {
+          // Avoid duplicates if already present
+          if (prev.some((p) => p.patientId === livePatient.patientId)) return prev;
+          return [livePatient, ...prev];
+        });
+      }
+    } catch {
+      // Corrupt localStorage entry — ignore
+    }
+  }, []);
 
   const selected = patients.find((p) => p.patientId === selectedId) || null;
 

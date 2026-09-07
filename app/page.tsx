@@ -22,6 +22,63 @@ export default function Home() {
     speechSynthesis.speak(utterance);
   };
 
+  const finalizePatientRecord = async (finalMessages: Message[]) => {
+    try {
+      const res = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: finalMessages, ocrResult: uploadResult }),
+      });
+      const summary = await res.json();
+
+      const patient = {
+        patientId: "live-demo",
+        patientName: "Live Demo Patient",
+        dateOfBirth: "N/A",
+        lastUpdated: "Just now",
+        source: { fromConversation: true, fromDocuments: !!uploadResult },
+        chiefComplaint: summary.chiefComplaint || "",
+        symptoms: (summary.symptoms || []).map((s: any) => ({ ...s, source: "conversation" })),
+        medications: (summary.medications || []).map((m: any) => ({
+          ...m,
+          source: uploadResult ? "document" : "conversation",
+        })),
+        allergies: (summary.allergies || []).map((a: any) => ({
+          ...a,
+          source: uploadResult ? "document" : "conversation",
+        })),
+        pastConditions: (summary.pastConditions || []).map((p: any) => ({
+          ...p,
+          source: uploadResult ? "document" : "conversation",
+        })),
+        uploadedDocuments: uploadResult
+          ? [
+              {
+                id: uploadResult.documentId,
+                fileName: "uploaded_document",
+                type: uploadResult.documentType,
+                uploadedAt: "Just now",
+                ocrConfidence: uploadResult.ocrConfidence,
+              },
+            ]
+          : [],
+        aiSummary: summary.aiSummary || null,
+        flags: summary.flags || [],
+        transcript: finalMessages.map((m) => ({
+          speaker: m.role === "patient" ? "Patient" : "AI",
+          time: "",
+          text: m.text,
+        })),
+        reviewed: false,
+        notes: [],
+      };
+
+      localStorage.setItem("medikiosk_live_patient", JSON.stringify(patient));
+    } catch (err) {
+      console.error("Failed to finalize patient record:", err);
+    }
+  };
+
   const askAI = async (transcript: string, history: Message[]) => {
     setIsThinking(true);
     try {
@@ -36,8 +93,8 @@ export default function Home() {
       speak(data.reply);
       if (data.reply.toLowerCase().includes("i have everything i need")) {
         setIsComplete(true);
+        finalizePatientRecord([...history, aiMessage]);
       }
-      
     } catch (err) {
       console.error("AI call failed:", err);
       const fallback: Message = { role: "ai", text: "Could you tell me more?" };

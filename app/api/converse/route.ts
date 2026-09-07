@@ -1,3 +1,5 @@
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+
 export async function POST(req: Request) {
   const { transcript, history } = await req.json();
 
@@ -19,7 +21,7 @@ Rules:
     : [];
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -27,7 +29,7 @@ Rules:
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents,
         generationConfig: {
-          maxOutputTokens: 2000,
+          maxOutputTokens: 8192,
         },
       }),
     }
