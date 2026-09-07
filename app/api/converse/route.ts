@@ -34,7 +34,6 @@ Rules:
   );
 
   const data = await response.json();
-  console.log("GEMINI RESPONSE:", JSON.stringify(data, null, 2));
   const reply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "Could you tell me more?";
 
   return Response.json({ reply });
