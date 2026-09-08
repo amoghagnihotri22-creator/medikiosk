@@ -1,13 +1,24 @@
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 
-async function callGeminiWithRetry(
+const API_KEYS = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+  process.env.GEMINI_API_KEY_4,
+  process.env.GEMINI_API_KEY_5,
+].filter(Boolean) as string[];
+
+let currentKeyIndex = 0;
+
+async function callGeminiWithSmartRetry(
   prompt: string,
-  apiKey: string,
-  maxRetries = 2
+  maxAttempts = API_KEYS.length * 2
 ): Promise<string> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const key = API_KEYS[currentKeyIndex % API_KEYS.length];
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -18,18 +29,24 @@ async function callGeminiWithRetry(
       }
     );
 
-    if (response.status === 429 && attempt < maxRetries) {
-      const retryAfter = Math.min(40, (attempt + 1) * 20);
+    if (response.status === 429) {
+      // This key is exhausted — switch to the next one
       console.warn(
-        `[summarize] Rate limited (429). Retrying in ${retryAfter}s (attempt ${attempt + 1}/${maxRetries})...`
+        `[summarize] Key #${currentKeyIndex + 1} rate limited. Switching to next key...`
       );
-      await new Promise((r) => setTimeout(r, retryAfter * 1000));
+      currentKeyIndex++;
+
+      // If we've tried all keys, wait a bit before cycling again
+      if ((attempt + 1) % API_KEYS.length === 0) {
+        console.warn("[summarize] All keys exhausted. Waiting 30s before retrying...");
+        await new Promise((r) => setTimeout(r, 30000));
+      }
       continue;
     }
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error("[summarize] Gemini API HTTP error:", response.status, errBody);
+      console.error("[summarize] Gemini API error:", response.status, errBody);
       throw new Error(`Gemini API returned ${response.status}`);
     }
 
@@ -41,7 +58,7 @@ async function callGeminiWithRetry(
     }
     return text;
   }
-  throw new Error("Max retries exceeded");
+  throw new Error("All API keys exhausted");
 }
 
 export async function POST(req: Request) {
@@ -79,8 +96,7 @@ ${ocrText}`;
 
   let parsed;
   try {
-    const apiKey = process.env.GEMINI_API_KEY || "";
-    let text = await callGeminiWithRetry(prompt, apiKey);
+    let text = await callGeminiWithSmartRetry(prompt);
 
     // Strip markdown code fences
     text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
